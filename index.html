@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local CRUD System</title>
+    <style>
+        :root {
+            --color-base: #F4F4F4; 
+            --color-text: #333333; 
+            --color-border: #CCCCCC;
+            --color-primary: #007BFF; 
+            --color-primary-dark: #0056b3; 
+            --color-success: #28A745;
+            --color-warning: #FFC107;
+            --color-danger: #DC3545;
+            --color-body-bg: #6FE6FC; 
+        }
+        
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; padding: 20px;
+            background-color: var(--color-body-bg); 
+            color: var(--color-text);
+        }
+        .container { 
+            max-width: 900px; margin: auto; 
+            background-color: #FFFFFF; padding: 20px; 
+            border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        h2 { border-bottom: 2px solid var(--color-border); padding-bottom: 5px; color: var(--color-primary); }
+        form input, form select, form button { padding: 10px; margin: 5px 0; border: 1px solid var(--color-border); border-radius: 4px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid var(--color-border); padding: 10px; text-align: left; font-size: 14px; }
+        th { background-color: #E9ECEF; }
+        
+        .btn-primary { background-color: var(--color-primary); color: white; border: none; padding: 8px 12px; cursor: pointer; border-radius: 4px; font-weight: bold; }
+        .btn-create { background-color: var(--color-success); color: white; }
+        .btn-delete { background-color: var(--color-danger); color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; }
+        .btn-update { background-color: var(--color-warning); color: black; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; }
+        
+        .message { padding: 15px; margin-bottom: 15px; border-radius: 4px; font-weight: bold; display: none; }
+        .message-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .message-error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        
+        .modal { display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.4); }
+        .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="statusMessage" class="message"></div>
+
+    <h2>Create User (CREATE 🟢)</h2>
+    <form id="createForm">
+        <input type="text" id="name" required placeholder="Name">
+        <input type="email" id="email" required placeholder="Email">
+        <input type="number" id="age" required min="1" placeholder="Age">
+        <select id="gender" required>
+            <option value="">Select Gender</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+        </select>
+        <button type="submit" class="btn-primary btn-create">Add New User</button>
+    </form>
+
+    <hr>
+
+    <h2>Database Viewer (READ 🔵)</h2>
+    <input type="text" id="searchInput" placeholder="Search by Name or Email..." onkeyup="renderTable()">
+    
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Age</th>
+                <th>Gender</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="userTableBody">
+            </tbody>
+    </table>
+</div>
+
+<div id="editModal" class="modal">
+    <div class="modal-content">
+        <h3>Edit User 🟠</h3>
+        <form id="editForm">
+            <input type="hidden" id="editId">
+            <input type="text" id="editName" required placeholder="Name"><br>
+            <input type="email" id="editEmail" required placeholder="Email"><br>
+            <input type="number" id="editAge" required min="1" placeholder="Age"><br>
+            <select id="editGender" required>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+            </select><br><br>
+            <button type="submit" class="btn-primary">Save Changes</button>
+            <button type="button" onclick="closeModal()" class="btn-primary" style="background-color: gray;">Cancel</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    // Initial Data Setup
+    let users = JSON.parse(localStorage.getItem('users')) || [
+        {id: 1, name: 'Initial User', email: 'test@datadb.com', age: 30, gender: 'Male'}
+    ];
+
+    const showMessage = (text, type) => {
+        const msgDiv = document.getElementById('statusMessage');
+        msgDiv.innerText = text;
+        msgDiv.className = `message message-${type}`;
+        msgDiv.style.display = 'block';
+        setTimeout(() => msgDiv.style.display = 'none', 3000);
+    };
+
+    const renderTable = () => {
+        const tbody = document.getElementById('userTableBody');
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        tbody.innerHTML = '';
+
+        const filteredUsers = users.filter(u => 
+            u.name.toLowerCase().includes(searchTerm) || 
+            u.email.toLowerCase().includes(searchTerm)
+        );
+
+        filteredUsers.forEach(user => {
+            tbody.innerHTML += `
+                <tr>
+                    <td>${user.id}</td>
+                    <td>${user.name}</td>
+                    <td>${user.email}</td>
+                    <td>${user.age}</td>
+                    <td>${user.gender}</td>
+                    <td>
+                        <button class="btn-update" onclick="openEditModal(${user.id})">Edit</button>
+                        <button class="btn-delete" onclick="deleteUser(${user.id})">Delete</button>
+                    </td>
+                </tr>
+            `;
+        });
+        localStorage.setItem('users', JSON.stringify(users));
+    };
+
+    // CREATE
+    document.getElementById('createForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const email = document.getElementById('email').value;
+        
+        if(users.some(u => u.email === email)) {
+            return showMessage("Error: Email already exists!", "error");
+        }
+
+        const newUser = {
+            id: users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1,
+            name: document.getElementById('name').value,
+            email: email,
+            age: document.getElementById('age').value,
+            gender: document.getElementById('gender').value
+        };
+
+        users.push(newUser);
+        renderTable();
+        e.target.reset();
+        showMessage("User added successfully!", "success");
+    });
+
+    // DELETE
+    const deleteUser = (id) => {
+        if(confirm('Are you sure you want to delete this user?')) {
+            users = users.filter(u => u.id !== id);
+            renderTable();
+            showMessage("User deleted!", "error");
+        }
+    };
+
+    // UPDATE LOGIC
+    const openEditModal = (id) => {
+        const user = users.find(u => u.id === id);
+        document.getElementById('editId').value = user.id;
+        document.getElementById('editName').value = user.name;
+        document.getElementById('editEmail').value = user.email;
+        document.getElementById('editAge').value = user.age;
+        document.getElementById('editGender').value = user.gender;
+        document.getElementById('editModal').style.display = 'block';
+    };
+
+    const closeModal = () => document.getElementById('editModal').style.display = 'none';
+
+    document.getElementById('editForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const id = parseInt(document.getElementById('editId').value);
+        const email = document.getElementById('editEmail').value;
+
+        if(users.some(u => u.email === email && u.id !== id)) {
+            return showMessage("Error: Email already in use!", "error");
+        }
+
+        const index = users.findIndex(u => u.id === id);
+        users[index] = {
+            id,
+            name: document.getElementById('editName').value,
+            email: email,
+            age: document.getElementById('editAge').value,
+            gender: document.getElementById('editGender').value
+        };
+
+        renderTable();
+        closeModal();
+        showMessage("User updated!", "success");
+    });
+
+    // Run on load
+    renderTable();
+</script>
+
+</body>
+</html>
